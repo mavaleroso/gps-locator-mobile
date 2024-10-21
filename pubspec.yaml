@@ -37,6 +37,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   socket_io_client: ^3.0.0
   geolocator: ^13.0.1
+  flutter_osm_plugin: ^0.70.4
 
 dev_dependencies:
   flutter_test:
