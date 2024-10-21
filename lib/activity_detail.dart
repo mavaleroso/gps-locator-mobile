@@ -140,7 +140,7 @@ class _ActivityDetailState extends State<ActivityDetail>
               children: [
                 FloatingActionButton(
                   onPressed: _isAnimating ? _stopAnimation : _startAnimation,
-                  backgroundColor: _isAnimating ? Colors.red : Colors.green,
+                  backgroundColor: _isAnimating ? Colors.red : Colors.amber,
                   child: Icon(_isAnimating ? Icons.stop : Icons.play_arrow),
                 ),
               ],

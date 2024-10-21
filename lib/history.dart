@@ -54,7 +54,7 @@ class _HistoryState extends State<History> {
 
     // Show confirmation
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('All SharedPreferences cleared!')),
+      SnackBar(content: Text('All activity is cleared!')),
     );
 
     setState(() {
