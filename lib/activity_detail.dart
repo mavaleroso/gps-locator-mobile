@@ -26,25 +26,13 @@ class ActivityDetail extends StatelessWidget {
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.example.app',
           ),
-          MarkerLayer(
-            markers: activity.coordinates.map((coord) {
-              return Marker(
-                point: coord,
-                child: const Icon(
-                  Icons.location_on,
-                  color: Colors.red,
-                  size: 30,
-                ),
-              );
-            }).toList(),
-          ),
           if (activity.coordinates.isNotEmpty)
             PolylineLayer(
               polylines: [
                 Polyline(
                   points: activity.coordinates,
-                  color: Colors.blue,
-                  strokeWidth: 4.0,
+                  color: Colors.amber,
+                  strokeWidth: 7.0,
                 ),
               ],
             ),

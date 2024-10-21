@@ -23,7 +23,9 @@ class _RecordState extends State<Record> {
   List<LatLng> _drawing = []; // Drawing path
   bool _isRecording = false; // Track if recording is active
   Duration _elapsedTime = Duration.zero; // Timer duration
+  Timer? _timer;
   StreamSubscription<Position>? _positionStream; // Updated type
+  List<String>? activityList = [];
 
   @override
   void initState() {
@@ -35,6 +37,7 @@ class _RecordState extends State<Record> {
   @override
   void dispose() {
     _positionStream?.cancel(); // Cancel the subscription
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -43,7 +46,6 @@ class _RecordState extends State<Record> {
     bool serviceEnabled;
     LocationPermission permission;
     SharedPreferences prefs = await SharedPreferences.getInstance();
-
     // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -96,15 +98,16 @@ class _RecordState extends State<Record> {
             id: activityId, coordinates: _drawing, time: DateTime.now());
 
         // Store activity in shared preferences
-        List<String>? activityList = prefs.getStringList('activities') ?? [];
-        activityList.add(jsonEncode(newActivity.toJson()));
-        prefs.setStringList('activities', activityList);
+        activityList = prefs.getStringList('activities') ?? [];
+        activityList?.add(jsonEncode(newActivity.toJson()));
       }
     });
   }
 
   // Method to start/stop recording
-  void _toggleRecording() {
+  void _toggleRecording() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
     setState(() {
       _isRecording = !_isRecording; // Toggle recording state
 
@@ -112,6 +115,16 @@ class _RecordState extends State<Record> {
         // Start recording, initialize drawing
         _drawing.clear(); // Clear the previous drawing
         _elapsedTime = Duration.zero; // Reset elapsed time
+
+        _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+          setState(() {
+            _elapsedTime = _elapsedTime + Duration(seconds: 1); // Update time
+          });
+        });
+      } else {
+        // Stop the timer
+        _timer?.cancel();
+        prefs.setStringList('activities', activityList!);
       }
     });
   }
