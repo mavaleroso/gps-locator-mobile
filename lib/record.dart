@@ -19,8 +19,8 @@ class _RecordState extends State<Record> {
   bool _locationFetched = false;
   List<LatLng> _path = [];
 
-  late Timer _timer;
-  late Timer _elapsedTimeTimer;
+  late Timer _timer; // Location update timer
+  late Timer _elapsedTimeTimer; // Elapsed time timer
   bool _isRecording = false; // Track if recording is active
   double _lastLatitude = 14.5995; // Last known latitude
   double _lastLongitude = 120.9842; // Last known longitude
@@ -105,7 +105,7 @@ class _RecordState extends State<Record> {
       _isRecording = !_isRecording; // Toggle recording state
 
       if (_isRecording) {
-        // Start recording, initialize path, and start the timer
+        // Start recording, initialize path, and start the timers
         _path.clear(); // Clear the previous path
         _elapsedTime = Duration.zero; // Reset elapsed time
         _elapsedTimeTimer = Timer.periodic(Duration(seconds: 1), (timer) {
@@ -113,8 +113,8 @@ class _RecordState extends State<Record> {
             _elapsedTime += Duration(seconds: 1); // Increment elapsed time
           });
         });
-        _timer = Timer.periodic(Duration(seconds: 5), (timer) {
-          _getCurrentLocation(); // Update location
+        _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+          _getCurrentLocation(); // Update location every second
         });
       } else {
         // Stop recording and cancel the timers
@@ -197,13 +197,11 @@ class _RecordState extends State<Record> {
           ),
           Positioned(
             bottom: 80,
-            left: 0, // Set left to 0
-            right: 0, // Set right to 0
+            left: 0,
+            right: 0,
             child: Center(
-              // Use Center widget
               child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center, // Center children vertically
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   FloatingActionButton(
                     onPressed: _toggleRecording,
