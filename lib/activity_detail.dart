@@ -2,11 +2,103 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:locationtrackingapp/model/activity.dart';
+import 'package:flutter/scheduler.dart'; // For the TickerProvider
+import 'dart:math';
 
-class ActivityDetail extends StatelessWidget {
+class ActivityDetail extends StatefulWidget {
   final Activity activity;
 
   ActivityDetail({required this.activity});
+
+  @override
+  _ActivityDetailState createState() => _ActivityDetailState();
+}
+
+class _ActivityDetailState extends State<ActivityDetail>
+    with SingleTickerProviderStateMixin {
+  late MapController _mapController;
+  late AnimationController _animationController;
+  late Animation<double> _animation;
+  List<LatLng> _animatedPath = [];
+  bool _isAnimating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+
+    // Set up the AnimationController
+    _animationController = AnimationController(
+      duration:
+          const Duration(seconds: 20), // Increased duration for smoothness
+      vsync: this,
+    );
+
+    // Applying an easing curve to the animation
+    _animation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    )..addListener(() {
+        _animatePath();
+      });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  // Interpolate between two points for smooth animation
+  LatLng _interpolate(LatLng start, LatLng end, double t) {
+    final lat = start.latitude + (end.latitude - start.latitude) * t;
+    final lng = start.longitude + (end.longitude - start.longitude) * t;
+    return LatLng(lat, lng);
+  }
+
+  // Animate the path smoothly by interpolating between points
+  void _animatePath() {
+    final int totalPoints = widget.activity.coordinates.length;
+
+    if (totalPoints > 1) {
+      final double scaledValue = _animation.value * (totalPoints - 1);
+      final int index = scaledValue.floor();
+      final double t = scaledValue - index;
+
+      // Interpolate between two points for smoother transition
+      final LatLng startPoint = widget.activity.coordinates[index];
+      final LatLng endPoint =
+          widget.activity.coordinates[min(index + 1, totalPoints - 1)];
+      final LatLng currentPosition = _interpolate(startPoint, endPoint, t);
+
+      setState(() {
+        _animatedPath = widget.activity.coordinates.sublist(0, index + 1);
+        _animatedPath
+            .add(currentPosition); // Append current interpolated position
+      });
+
+      // Move the map view to the current position
+      _mapController.move(currentPosition, 18);
+    }
+  }
+
+  // Start animation
+  void _startAnimation() {
+    setState(() {
+      _isAnimating = true;
+      _animatedPath.clear(); // Clear the previous path
+    });
+    _animationController.forward(
+        from: 0.0); // Start animation from the beginning
+  }
+
+  // Stop animation
+  void _stopAnimation() {
+    _animationController.stop(); // Stop the animation
+    setState(() {
+      _isAnimating = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,28 +106,46 @@ class ActivityDetail extends StatelessWidget {
       appBar: AppBar(
         title: Text('Activity Details'),
       ),
-      body: FlutterMap(
-        options: MapOptions(
-          initialCenter: activity.coordinates.isNotEmpty
-              ? activity.coordinates[0]
-              : LatLng(0, 0), // Default center
-          initialZoom: 15.0,
-        ),
+      body: Stack(
         children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.app',
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: widget.activity.coordinates.isNotEmpty
+                  ? widget.activity.coordinates[0]
+                  : LatLng(0, 0),
+              initialZoom: 15.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.app',
+              ),
+              if (_animatedPath.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _animatedPath,
+                      color: Colors.amber,
+                      strokeWidth: 7.0,
+                    ),
+                  ],
+                ),
+            ],
           ),
-          if (activity.coordinates.isNotEmpty)
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: activity.coordinates,
-                  color: Colors.amber,
-                  strokeWidth: 7.0,
+          Positioned(
+            bottom: 16,
+            left: 16,
+            child: Row(
+              children: [
+                FloatingActionButton(
+                  onPressed: _isAnimating ? _stopAnimation : _startAnimation,
+                  backgroundColor: _isAnimating ? Colors.red : Colors.green,
+                  child: Icon(_isAnimating ? Icons.stop : Icons.play_arrow),
                 ),
               ],
             ),
+          ),
         ],
       ),
     );
