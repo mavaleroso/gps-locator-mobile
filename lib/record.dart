@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -21,14 +20,10 @@ class _RecordState extends State<Record> {
   LatLng _currentLocation = const LatLng(14.5995, 120.9842);
   late MapController _mapController;
   bool _locationFetched = false;
-  List<LatLng> _path = [];
-
-  Timer? _timer;
-  Timer? _elapsedTimeTimer;
+  List<LatLng> _drawing = []; // Drawing path
   bool _isRecording = false; // Track if recording is active
-  double _lastLatitude = 14.5995; // Last known latitude
-  double _lastLongitude = 120.9842; // Last known longitude
   Duration _elapsedTime = Duration.zero; // Timer duration
+  StreamSubscription<Position>? _positionStream; // Updated type
 
   @override
   void initState() {
@@ -39,8 +34,7 @@ class _RecordState extends State<Record> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // Cancel the location update timer when disposing
-    _elapsedTimeTimer?.cancel(); // Cancel the elapsed time timer when disposing
+    _positionStream?.cancel(); // Cancel the subscription
     super.dispose();
   }
 
@@ -71,46 +65,42 @@ class _RecordState extends State<Record> {
       // Handle permission permanently denied
       return;
     }
-
-    // Get the current position
-    Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-
-    // Check if the distance moved is greater than 3 meters
-    double distanceInMeters = Geolocator.distanceBetween(
-      _lastLatitude,
-      _lastLongitude,
-      position.latitude,
-      position.longitude,
+    LocationSettings locationSettings = AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 1,
+      forceLocationManager: true,
     );
+    // Start listening to position updates
 
-    // Update location only if moved more than 3 meters
-    if (distanceInMeters > 1) {
-      setState(() {
-        _currentLocation = LatLng(position.latitude, position.longitude);
-        _locationFetched = true;
-        _mapController.move(
-            _currentLocation, 18.0); // Move map to current location
+    _positionStream =
+        Geolocator.getPositionStream(locationSettings: locationSettings)
+            .listen((Position position) {
+      _updateLocation(position, prefs);
+    });
+  }
 
-        // Add the current location to the path if recording
-        if (_isRecording) {
-          _path.add(_currentLocation);
-          String activityId =
-              DateTime.now().millisecondsSinceEpoch.toString(); // Unique ID
-          Activity newActivity = Activity(
-              id: activityId, coordinates: _path, time: DateTime.now());
+  // Method to update the location and add to the drawing
+  void _updateLocation(Position position, SharedPreferences prefs) {
+    setState(() {
+      _currentLocation = LatLng(position.latitude, position.longitude);
+      _locationFetched = true;
+      _mapController.move(
+          _currentLocation, 18.0); // Move map to current location
 
-          // Store activity in shared preferences
-          List<String>? activityList = prefs.getStringList('activities') ?? [];
-          activityList.add(jsonEncode(newActivity.toJson()));
-          prefs.setStringList('activities', activityList);
-        }
+      // Add the current location to the drawing if recording
+      if (_isRecording) {
+        _drawing.add(_currentLocation);
+        String activityId =
+            DateTime.now().millisecondsSinceEpoch.toString(); // Unique ID
+        Activity newActivity = Activity(
+            id: activityId, coordinates: _drawing, time: DateTime.now());
 
-        // Update last known location
-        _lastLatitude = position.latitude;
-        _lastLongitude = position.longitude;
-      });
-    }
+        // Store activity in shared preferences
+        List<String>? activityList = prefs.getStringList('activities') ?? [];
+        activityList.add(jsonEncode(newActivity.toJson()));
+        prefs.setStringList('activities', activityList);
+      }
+    });
   }
 
   // Method to start/stop recording
@@ -119,21 +109,9 @@ class _RecordState extends State<Record> {
       _isRecording = !_isRecording; // Toggle recording state
 
       if (_isRecording) {
-        // Start recording, initialize path, and start the timer
-        _path.clear(); // Clear the previous path
+        // Start recording, initialize drawing
+        _drawing.clear(); // Clear the previous drawing
         _elapsedTime = Duration.zero; // Reset elapsed time
-        _elapsedTimeTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-          setState(() {
-            _elapsedTime += Duration(seconds: 1); // Increment elapsed time
-          });
-        });
-        _timer = Timer.periodic(Duration(seconds: 5), (timer) {
-          _getCurrentLocation(); // Update location
-        });
-      } else {
-        // Stop recording and cancel the timers
-        _timer?.cancel();
-        _elapsedTimeTimer?.cancel();
       }
     });
   }
@@ -170,7 +148,7 @@ class _RecordState extends State<Record> {
             PolylineLayer(
               polylines: [
                 Polyline(
-                  points: _path,
+                  points: _drawing, // Updated variable name
                   color: Colors.amberAccent,
                   strokeWidth: 4.0,
                 ),

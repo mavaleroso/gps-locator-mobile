@@ -45,12 +45,26 @@ class _HistoryState extends State<History> {
     );
   }
 
+  void clearSharedPreferences() async {
+    // Access shared preferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Clear all preferences
+    await prefs.clear();
+
+    // Show confirmation
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('All SharedPreferences cleared!')),
+    );
+
+    setState(() {
+      _activities = []; // Empty list after clearing storage
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Activity History'),
-      ),
       body: ListView.builder(
         itemCount: _activities.length,
         itemBuilder: (context, index) {
@@ -61,6 +75,13 @@ class _HistoryState extends State<History> {
             onTap: () => _navigateToActivityDetail(activity),
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: clearSharedPreferences,
+        child: Icon(Icons.delete_forever_rounded),
+        tooltip: 'Reset',
+        backgroundColor: Colors.red[300],
+        foregroundColor: Colors.white,
       ),
     );
   }
