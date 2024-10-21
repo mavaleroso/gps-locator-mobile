@@ -39,6 +39,7 @@ dependencies:
   flutter_osm_plugin: ^0.70.4
   flutter_map: ^7.0.2
   url_launcher: ^6.3.1
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
