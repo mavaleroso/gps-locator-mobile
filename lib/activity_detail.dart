@@ -22,6 +22,24 @@ class _ActivityDetailState extends State<ActivityDetail>
   List<LatLng> _animatedPath = [];
   bool _isAnimating = false;
 
+  final List<Map<String, dynamic>> _destinations = [
+    {
+      'location': LatLng(8.952399, 125.529228),
+      'delivered': false,
+      'deliveredAt': null
+    },
+    {
+      'location': LatLng(8.953652, 125.528008),
+      'delivered': false,
+      'deliveredAt': null
+    },
+    {
+      'location': LatLng(8.954917, 125.528586),
+      'delivered': false,
+      'deliveredAt': null
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +149,29 @@ class _ActivityDetailState extends State<ActivityDetail>
                     ),
                   ],
                 ),
+              MarkerLayer(
+                markers: _destinations
+                    .asMap()
+                    .entries
+                    .map(
+                      (entry) => Marker(
+                        point: entry.value['location'] as LatLng,
+                        width: 80,
+                        height: 80,
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                            Text('Destination ${entry.key + 1}'),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
             ],
           ),
           Positioned(

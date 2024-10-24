@@ -27,13 +27,25 @@ class _RecordState extends State<Record> {
   List<String>? activityList = [];
 
   // Define your 5 destination coordinates
-  final List<LatLng> _destinations = [
-    LatLng(8.956495, 125.528629), // Manila
-    LatLng(8.941064, 125.540044), // Quezon City
-    LatLng(8.943862, 125.524681), // Makati
-    LatLng(8.942124, 125.535367), // Pasig
-    LatLng(8.959208, 125.527041), // Taguig
+  final List<Map<String, dynamic>> _destinations = [
+    {
+      'location': LatLng(8.952399, 125.529228),
+      'delivered': false,
+      'deliveredAt': null
+    },
+    {
+      'location': LatLng(8.953652, 125.528008),
+      'delivered': false,
+      'deliveredAt': null
+    },
+    {
+      'location': LatLng(8.954917, 125.528586),
+      'delivered': false,
+      'deliveredAt': null
+    },
   ];
+
+  final double _proximityThreshold = 20.0; // 5 meters radius
 
   @override
   void initState() {
@@ -92,8 +104,66 @@ class _RecordState extends State<Record> {
 
         activityList = prefs.getStringList('activities') ?? [];
         activityList?.add(jsonEncode(newActivity.toJson()));
+
+        _checkProximityAndShowBottomSheet(); // Check proximity after updating location
       }
     });
+  }
+
+  void _checkProximityAndShowBottomSheet() {
+    for (var destination in _destinations) {
+      final LatLng destinationLocation = destination['location'];
+      final bool delivered = destination['delivered'];
+
+      if (!delivered) {
+        double distance = Geolocator.distanceBetween(
+          _currentLocation.latitude,
+          _currentLocation.longitude,
+          destinationLocation.latitude,
+          destinationLocation.longitude,
+        );
+
+        if (distance <= _proximityThreshold && _isRecording) {
+          // Show the bottom sheet asking for delivery confirmation
+          _showDeliveryConfirmation(destination);
+          break; // Exit loop once a nearby destination is found
+        }
+      }
+    }
+  }
+
+  void _showDeliveryConfirmation(Map<String, dynamic> destination) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Confirm Delivery',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text('Is the item delivered at this destination?'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    // Update the destination's delivered status to true
+                    destination['delivered'] = true;
+                    destination['deliveredAt'] = DateTime.now().toString();
+                  });
+                  Navigator.pop(context); // Close the bottom sheet
+                },
+                child: const Text('Delivered'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _toggleRecording() async {
@@ -130,6 +200,63 @@ class _RecordState extends State<Record> {
     return '$twoDigitsHours:$twoDigitsMinutes:$twoDigitsSeconds';
   }
 
+  // Method to show bottom sheet with list of destinations
+  void _showDestinationsList() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Destinations',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ListView.builder(
+                shrinkWrap:
+                    true, // Allow the list to take only the necessary space
+                itemCount: _destinations.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final destination = _destinations[index];
+                  final delivered = destination['delivered'] as bool;
+                  final deliveredAt = destination['deliveredAt'] as String?;
+
+                  return ListTile(
+                    title: Text('Destination ${index + 1}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            'Location: (${destination['location'].latitude}, ${destination['location'].longitude})'),
+                        Text(
+                            'Status: ${delivered ? 'Delivered' : 'Not Delivered'}'),
+                        if (deliveredAt !=
+                            null) // Show the delivered timestamp if available
+                          Text('Delivered at: $deliveredAt'),
+                      ],
+                    ),
+                    trailing: delivered
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : const Icon(Icons.circle_outlined, color: Colors.red),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _moveToDestination(LatLng destination) {
+    print(
+        'Move to destination: ${destination.latitude}, ${destination.longitude}');
+    // You can integrate this with a map controller to move to the destination
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,12 +288,12 @@ class _RecordState extends State<Record> {
                 .entries
                 .map(
                   (entry) => Marker(
-                    point: entry.value,
+                    point: entry.value['location'] as LatLng,
                     width: 80,
                     height: 80,
                     child: Column(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.location_on,
                           color: Colors.red,
                           size: 40,
@@ -206,11 +333,46 @@ class _RecordState extends State<Record> {
             bottom: 16,
             right: 16,
             child: FloatingActionButton(
+              backgroundColor: Colors.white,
               onPressed: _moveToCurrentLocation,
               tooltip: 'Go to Current Location',
-              child: Icon(Icons.my_location),
+              child: const Icon(Icons.my_location),
             ),
           ),
+          Positioned(
+              bottom: 16,
+              left: 16,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  FloatingActionButton(
+                    backgroundColor: Colors.amber[300],
+                    onPressed: _showDestinationsList,
+                    tooltip: 'Current Delivery',
+                    child: const Icon(Icons.delivery_dining),
+                  ),
+                  // Badge
+                  Positioned(
+                    top: 5,
+                    left: 5,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${_destinations.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )),
           Positioned(
             bottom: 80,
             left: 0,
