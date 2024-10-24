@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'dart:convert';
 
 class History extends StatefulWidget {
-  const History({Key? key}) : super(key: key);
+  const History({super.key});
 
   @override
   _HistoryState createState() => _HistoryState();
@@ -54,7 +54,7 @@ class _HistoryState extends State<History> {
 
     // Show confirmation
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('All activity is cleared!')),
+      const SnackBar(content: Text('All activity is cleared!')),
     );
 
     setState(() {
@@ -78,10 +78,10 @@ class _HistoryState extends State<History> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: clearSharedPreferences,
-        child: Icon(Icons.delete_forever_rounded),
         tooltip: 'Reset',
         backgroundColor: Colors.red[300],
         foregroundColor: Colors.white,
+        child: Icon(Icons.delete_forever_rounded),
       ),
     );
   }

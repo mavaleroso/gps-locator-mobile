@@ -8,6 +8,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -18,6 +20,8 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
   _MyHomePageState createState() => _MyHomePageState();
 }
@@ -73,8 +77,8 @@ class _MyHomePageState extends State<MyHomePage> {
     final hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
-    final locationSettings =
-        LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 20);
+    final locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.high, distanceFilter: 20);
     StreamSubscription<Position> positionStream =
         Geolocator.getPositionStream(locationSettings: locationSettings)
             .listen((Position position) {
@@ -89,8 +93,8 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: Text('Location Tracking App'),
+          title: const Text('Location Tracking App'),
         ),
-        body: Center(child: Text("Location Tracking App Body")));
+        body: const Center(child: Text("Location Tracking App Body")));
   }
 }

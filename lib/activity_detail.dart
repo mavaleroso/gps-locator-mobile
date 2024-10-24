@@ -8,7 +8,7 @@ import 'dart:math';
 class ActivityDetail extends StatefulWidget {
   final Activity activity;
 
-  ActivityDetail({required this.activity});
+  const ActivityDetail({super.key, required this.activity});
 
   @override
   _ActivityDetailState createState() => _ActivityDetailState();
@@ -104,7 +104,7 @@ class _ActivityDetailState extends State<ActivityDetail>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Activity Details'),
+        title: const Text('Activity Details'),
       ),
       body: Stack(
         children: [
@@ -113,7 +113,7 @@ class _ActivityDetailState extends State<ActivityDetail>
             options: MapOptions(
               initialCenter: widget.activity.coordinates.isNotEmpty
                   ? widget.activity.coordinates[0]
-                  : LatLng(0, 0),
+                  : const LatLng(0, 0),
               initialZoom: 15.0,
             ),
             children: [
