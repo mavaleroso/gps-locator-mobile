@@ -16,10 +16,11 @@ class Record extends StatefulWidget {
 }
 
 class _RecordState extends State<Record> {
-  LatLng _currentLocation = const LatLng(14.5995, 120.9842); // Default Manila
+  LatLng _currentLocation = const LatLng(8.9517, 125.5297); // Default Manila
   late MapController _mapController;
   bool _locationFetched = false;
   final List<LatLng> _drawing = []; // Path for recording
+  final List<LatLng> _highlightedPath = []; // Path to next destination
   bool _isRecording = false;
   Duration _elapsedTime = Duration.zero;
   Timer? _timer;
@@ -98,16 +99,56 @@ class _RecordState extends State<Record> {
 
       if (_isRecording) {
         _drawing.add(_currentLocation);
+
+        // Update the path to the nearest undelivered destination
+        _updatePathToDestination();
+
         String activityId = DateTime.now().millisecondsSinceEpoch.toString();
         Activity newActivity = Activity(
-            id: activityId, coordinates: _drawing, time: DateTime.now());
+          id: activityId,
+          coordinates: _drawing,
+          time: DateTime.now(),
+        );
 
         activityList = prefs.getStringList('activities') ?? [];
         activityList?.add(jsonEncode(newActivity.toJson()));
 
-        _checkProximityAndShowBottomSheet(); // Check proximity after updating location
+        _checkProximityAndShowBottomSheet();
       }
     });
+  }
+
+  void _updatePathToDestination() {
+    // Clear the previous path
+    _highlightedPath.clear();
+
+    // Find the nearest undelivered destination
+    final undeliveredDestinations = _destinations
+        .where((destination) => destination['delivered'] == false)
+        .toList();
+
+    if (undeliveredDestinations.isNotEmpty) {
+      Map<String, dynamic> nearestDestination = undeliveredDestinations.first;
+      double minDistance = double.infinity;
+
+      for (var destination in undeliveredDestinations) {
+        double distance = Geolocator.distanceBetween(
+          _currentLocation.latitude,
+          _currentLocation.longitude,
+          destination['location'].latitude,
+          destination['location'].longitude,
+        );
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestDestination = destination;
+        }
+      }
+
+      // Set the highlighted path as the line from the current location to the nearest undelivered destination
+      _highlightedPath.add(_currentLocation);
+      _highlightedPath.add(nearestDestination['location']);
+    }
   }
 
   void _checkProximityAndShowBottomSheet() {
@@ -278,6 +319,12 @@ class _RecordState extends State<Record> {
                   points: _drawing,
                   color: Colors.amberAccent,
                   strokeWidth: 4.0,
+                ),
+                Polyline(
+                  points: _highlightedPath,
+                  color: Colors.blueAccent,
+                  strokeWidth: 4.0,
+                  colorsStop: [6, 3],
                 ),
               ],
             ),
