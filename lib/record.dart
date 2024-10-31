@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -7,6 +8,7 @@ import 'package:locationtrackingapp/model/activity.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import 'package:http/http.dart' as http;
 
 class Record extends StatefulWidget {
   const Record({super.key});
@@ -17,15 +19,18 @@ class Record extends StatefulWidget {
 
 class _RecordState extends State<Record> {
   LatLng _currentLocation = const LatLng(8.9517, 125.5297); // Default Manila
+  LatLng? nearestDestination;
   late MapController _mapController;
   bool _locationFetched = false;
   final List<LatLng> _drawing = []; // Path for recording
-  final List<LatLng> _highlightedPath = []; // Path to next destination
   bool _isRecording = false;
   Duration _elapsedTime = Duration.zero;
   Timer? _timer;
   StreamSubscription<Position>? _positionStream;
   List<String>? activityList = [];
+  List<LatLng> _routeCoordinates = [];
+  final String _orsApiKey =
+      '5b3ce3597851110001cf62486f61daf8bee1425a93f93d9f99e49416'; // Add your ORS API Key here
 
   // Define your 5 destination coordinates
   final List<Map<String, dynamic>> _destinations = [
@@ -84,11 +89,75 @@ class _RecordState extends State<Record> {
       forceLocationManager: true,
     );
 
+    _showRouteToNearestDestination();
+
     _positionStream =
         Geolocator.getPositionStream(locationSettings: locationSettings)
             .listen((Position position) {
       _updateLocation(position, prefs);
     });
+  }
+
+  double _calculateDistance(LatLng start, LatLng end) {
+    const double earthRadius = 6371; // Earth radius in km
+
+    double dLat = _degreesToRadians(end.latitude - start.latitude);
+    double dLon = _degreesToRadians(end.longitude - start.longitude);
+
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_degreesToRadians(start.latitude)) *
+            cos(_degreesToRadians(end.latitude)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c; // Distance in km
+  }
+
+  double _degreesToRadians(double degrees) {
+    return degrees * pi / 180;
+  }
+
+  LatLng _findNearestDestination() {
+    LatLng nearestDestination = _destinations.first['location'];
+    double minDistance =
+        _calculateDistance(_currentLocation, nearestDestination);
+
+    for (var destination in _destinations) {
+      double distance =
+          _calculateDistance(_currentLocation, destination['location']);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestDestination = destination['location'];
+      }
+    }
+    return nearestDestination;
+  }
+
+  Future<void> _getRoute(LatLng start, LatLng end) async {
+    final url = Uri.parse(
+      'https://api.openrouteservice.org/v2/directions/foot-walking?api_key=$_orsApiKey&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}',
+    );
+
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final coordinates =
+          data['features'][0]['geometry']['coordinates'] as List<dynamic>;
+
+      setState(() {
+        _routeCoordinates = coordinates
+            .map((coord) => LatLng(coord[1] as double, coord[0] as double))
+            .toList();
+      });
+    } else {
+      print('Failed to load route: ${response.statusCode}');
+    }
+  }
+
+  void _showRouteToNearestDestination() {
+    nearestDestination = _findNearestDestination();
+    _getRoute(_currentLocation, nearestDestination!);
   }
 
   void _updateLocation(Position position, SharedPreferences prefs) {
@@ -99,9 +168,6 @@ class _RecordState extends State<Record> {
 
       if (_isRecording) {
         _drawing.add(_currentLocation);
-
-        // Update the path to the nearest undelivered destination
-        _updatePathToDestination();
 
         String activityId = DateTime.now().millisecondsSinceEpoch.toString();
         Activity newActivity = Activity(
@@ -116,39 +182,6 @@ class _RecordState extends State<Record> {
         _checkProximityAndShowBottomSheet();
       }
     });
-  }
-
-  void _updatePathToDestination() {
-    // Clear the previous path
-    _highlightedPath.clear();
-
-    // Find the nearest undelivered destination
-    final undeliveredDestinations = _destinations
-        .where((destination) => destination['delivered'] == false)
-        .toList();
-
-    if (undeliveredDestinations.isNotEmpty) {
-      Map<String, dynamic> nearestDestination = undeliveredDestinations.first;
-      double minDistance = double.infinity;
-
-      for (var destination in undeliveredDestinations) {
-        double distance = Geolocator.distanceBetween(
-          _currentLocation.latitude,
-          _currentLocation.longitude,
-          destination['location'].latitude,
-          destination['location'].longitude,
-        );
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestDestination = destination;
-        }
-      }
-
-      // Set the highlighted path as the line from the current location to the nearest undelivered destination
-      _highlightedPath.add(_currentLocation);
-      _highlightedPath.add(nearestDestination['location']);
-    }
   }
 
   void _checkProximityAndShowBottomSheet() {
@@ -301,6 +334,14 @@ class _RecordState extends State<Record> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Delivery Route"),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.directions),
+              onPressed: _showRouteToNearestDestination),
+        ],
+      ),
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
@@ -318,13 +359,17 @@ class _RecordState extends State<Record> {
                 Polyline(
                   points: _drawing,
                   color: Colors.amberAccent,
-                  strokeWidth: 4.0,
+                  strokeWidth: 6.0,
                 ),
+              ],
+            ),
+          if (_routeCoordinates.isNotEmpty)
+            PolylineLayer(
+              polylines: [
                 Polyline(
-                  points: _highlightedPath,
-                  color: Colors.blueAccent,
-                  strokeWidth: 4.0,
-                  colorsStop: [6, 3],
+                  points: _routeCoordinates,
+                  color: Colors.blue,
+                  strokeWidth: 6.0,
                 ),
               ],
             ),
