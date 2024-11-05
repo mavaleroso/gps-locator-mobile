@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:signature/signature.dart';
 
 class Record extends StatefulWidget {
   const Record({super.key});
@@ -18,7 +19,7 @@ class Record extends StatefulWidget {
 }
 
 class _RecordState extends State<Record> {
-  LatLng _currentLocation = const LatLng(8.9517, 125.5297); // Default Manila
+  LatLng _currentLocation = const LatLng(8.9505, 125.5301); // Default Manila
   LatLng? nearestDestination;
   late MapController _mapController;
   bool _locationFetched = false;
@@ -31,6 +32,14 @@ class _RecordState extends State<Record> {
   List<LatLng> _routeCoordinates = [];
   final String _orsApiKey =
       '5b3ce3597851110001cf62486f61daf8bee1425a93f93d9f99e49416'; // Add your ORS API Key here
+  List<Polyline> _routePolylines = [];
+
+  final TextEditingController _nameController = TextEditingController();
+  final SignatureController _signatureController = SignatureController(
+    penStrokeWidth: 3,
+    penColor: Colors.black,
+  );
+  bool _isDeliveryModalOpen = false; // Flag to prevent repeated modals
 
   // Define your 5 destination coordinates
   final List<Map<String, dynamic>> _destinations = [
@@ -49,6 +58,11 @@ class _RecordState extends State<Record> {
       'delivered': false,
       'deliveredAt': null
     },
+    {
+      'location': LatLng(8.9443585, 125.5285996),
+      'delivered': false,
+      'deliveredAt': null
+    },
   ];
 
   final double _proximityThreshold = 20.0; // 5 meters radius
@@ -64,6 +78,8 @@ class _RecordState extends State<Record> {
   void dispose() {
     _positionStream?.cancel();
     _timer?.cancel();
+    _nameController.dispose();
+    _signatureController.dispose();
     super.dispose();
   }
 
@@ -134,21 +150,42 @@ class _RecordState extends State<Record> {
     return nearestDestination;
   }
 
-  Future<void> _getRoute(LatLng start, LatLng end) async {
+  Future<void> _getRoute(LatLng start, LatLng end,
+      {int alternatives = 2}) async {
     final url = Uri.parse(
-      'https://api.openrouteservice.org/v2/directions/foot-walking?api_key=$_orsApiKey&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}',
-    );
+        'https://api.openrouteservice.org/v2/directions/foot-walking?api_key=$_orsApiKey&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}&alternative_routes[share_factor]=0.6&alternative_routes[weight_factor]=1.4&alternative_routes[maximum_routes]=$alternatives');
 
     final response = await http.get(url);
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      final coordinates =
-          data['features'][0]['geometry']['coordinates'] as List<dynamic>;
+      final List<Polyline> alternativePolylines = [];
 
-      setState(() {
-        _routeCoordinates = coordinates
+      // final coordinates =
+      //     data['features'][0]['geometry']['coordinates'] as List<dynamic>;
+      for (var feature in data['features']) {
+        final coordinates = feature['geometry']['coordinates'] as List<dynamic>;
+        final routeCoordinates = coordinates
             .map((coord) => LatLng(coord[1] as double, coord[0] as double))
             .toList();
+
+        // Set different shades for alternative routes
+        Color routeColor =
+            alternativePolylines.isEmpty ? Colors.blue : Colors.grey.shade300;
+
+        alternativePolylines.add(
+          Polyline(
+            points: routeCoordinates,
+            strokeWidth: 4.0,
+            color: routeColor,
+          ),
+        );
+      }
+
+      setState(() {
+        // _routeCoordinates = alternativePolylines
+        //     .map((coord) => LatLng(coord[1] as double, coord[0] as double))
+        //     .toList();
+        _routePolylines = alternativePolylines;
       });
     } else {
       print('Failed to load route: ${response.statusCode}');
@@ -185,6 +222,8 @@ class _RecordState extends State<Record> {
   }
 
   void _checkProximityAndShowBottomSheet() {
+    if (_isDeliveryModalOpen) return;
+
     for (var destination in _destinations) {
       final LatLng destinationLocation = destination['location'];
       final bool delivered = destination['delivered'];
@@ -207,37 +246,102 @@ class _RecordState extends State<Record> {
   }
 
   void _showDeliveryConfirmation(Map<String, dynamic> destination) {
+    setState(() {
+      _isDeliveryModalOpen = true; // Set modal open flag to true
+    });
+
+    _nameController.clear();
+    _signatureController.clear();
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Confirm Delivery',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Confirm Delivery',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Is the item delivered at this destination?'),
+                  const SizedBox(height: 16),
+
+                  // Name input field
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Signature pad
+                  const Text('Signature:'),
+                  const SizedBox(height: 8),
+                  Signature(
+                    controller: _signatureController,
+                    height: 150,
+                    backgroundColor: Colors.grey[200]!,
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          _signatureController.clear(); // Clear the signature
+                        },
+                        child: const Text('Clear Signature'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  ElevatedButton(
+                    onPressed: () {
+                      if (_nameController.text.isEmpty ||
+                          _signatureController.isEmpty) {
+                        // Show an error if name or signature is missing
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content:
+                                Text('Please provide your name and signature'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() {
+                        // Update the destination's delivered status
+                        destination['delivered'] = true;
+                        destination['deliveredAt'] = DateTime.now().toString();
+                      });
+
+                      Navigator.pop(context); // Close the bottom sheet
+                    },
+                    child: const Text('Confirm Delivery'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              const Text('Is the item delivered at this destination?'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    // Update the destination's delivered status to true
-                    destination['delivered'] = true;
-                    destination['deliveredAt'] = DateTime.now().toString();
-                  });
-                  Navigator.pop(context); // Close the bottom sheet
-                },
-                child: const Text('Delivered'),
-              ),
-            ],
+            ),
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      // Reset the flag when modal is closed
+      setState(() {
+        _isDeliveryModalOpen = false;
+      });
+    });
   }
 
   void _toggleRecording() async {
@@ -363,6 +467,9 @@ class _RecordState extends State<Record> {
                 ),
               ],
             ),
+          PolylineLayer(
+            polylines: _routePolylines,
+          ),
           if (_routeCoordinates.isNotEmpty)
             PolylineLayer(
               polylines: [
@@ -385,10 +492,17 @@ class _RecordState extends State<Record> {
                     height: 80,
                     child: Column(
                       children: [
-                        const Icon(
-                          Icons.location_on,
-                          color: Colors.red,
-                          size: 40,
+                        GestureDetector(
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.red,
+                            size: 40,
+                          ),
+                          onTap: () {
+                            // Call _getRoute with tapped destination coordinates
+                            _getRoute(_currentLocation,
+                                entry.value['location'] as LatLng);
+                          },
                         ),
                         Text('Destination ${entry.key + 1}'),
                       ],
