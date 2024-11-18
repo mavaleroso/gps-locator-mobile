@@ -153,43 +153,122 @@ class _RecordState extends State<Record> {
   Future<void> _getRoute(LatLng start, LatLng end,
       {int alternatives = 2}) async {
     final url = Uri.parse(
-        'https://api.openrouteservice.org/v2/directions/foot-walking?api_key=$_orsApiKey&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}&alternative_routes[share_factor]=0.6&alternative_routes[weight_factor]=1.4&alternative_routes[maximum_routes]=$alternatives');
-
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final List<Polyline> alternativePolylines = [];
-
-      // final coordinates =
-      //     data['features'][0]['geometry']['coordinates'] as List<dynamic>;
-      for (var feature in data['features']) {
-        final coordinates = feature['geometry']['coordinates'] as List<dynamic>;
-        final routeCoordinates = coordinates
-            .map((coord) => LatLng(coord[1] as double, coord[0] as double))
-            .toList();
-
-        // Set different shades for alternative routes
-        Color routeColor =
-            alternativePolylines.isEmpty ? Colors.blue : Colors.grey.shade300;
-
-        alternativePolylines.add(
-          Polyline(
-            points: routeCoordinates,
-            strokeWidth: 4.0,
-            color: routeColor,
-          ),
-        );
+        'https://api.openrouteservice.org/v2/directions/foot-walking');
+    final requestPayload = jsonEncode({
+      "coordinates": [
+        [start.longitude, start.latitude],
+        [end.longitude, end.latitude]
+      ],
+      "alternative_routes": {
+        "target_count": 2,
+        "weight_factor": 1.4,
+        "share_factor": 0.6
       }
+    });
 
-      setState(() {
-        // _routeCoordinates = alternativePolylines
-        //     .map((coord) => LatLng(coord[1] as double, coord[0] as double))
-        //     .toList();
-        _routePolylines = alternativePolylines;
-      });
-    } else {
-      print('Failed to load route: ${response.statusCode}');
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': _orsApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: requestPayload,
+      );
+
+      print(response.body);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<Polyline> alternativePolylines = [];
+
+        // for (var feature in data['features']) {
+        //   final coordinates =
+        //       feature['geometry']['coordinates'] as List<dynamic>;
+        //   final routeCoordinates = coordinates
+        //       .map((coord) => LatLng(coord[1] as double, coord[0] as double))
+        //       .toList();
+
+        //   // Use different colors for alternative routes
+        //   Color routeColor =
+        //       alternativePolylines.isEmpty ? Colors.blue : Colors.grey.shade400;
+
+        //   alternativePolylines.add(
+        //     Polyline(
+        //       points: routeCoordinates,
+        //       strokeWidth: 4.0,
+        //       color: routeColor,
+        //     ),
+        //   );
+        // }
+        // if (data['routes'] is List) {
+        for (var route in data['routes']) {
+          // Extract the encoded geometry and decode it into a list of coordinates
+          final encodedGeometry = route['geometry'] as String;
+
+          // Decode the polyline (OpenRouteService provides encoded geometry in "Polyline6" format)
+          final routeCoordinates =
+              decodePolyline(encodedGeometry, precision: 6);
+
+          // Use different colors for alternative routes
+          Color routeColor =
+              alternativePolylines.isEmpty ? Colors.blue : Colors.grey.shade400;
+
+          // Add the decoded route as a Polyline
+          alternativePolylines.add(
+            Polyline(
+              points: routeCoordinates,
+              strokeWidth: 4.0,
+              color: routeColor,
+            ),
+          );
+        }
+        // } else {
+        //   print("No routes available in the response.");
+        // }
+        setState(() {
+          _routePolylines = alternativePolylines;
+        });
+      } else {
+        print(
+            'Failed to load route: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Error while fetching route: $e');
     }
+  }
+
+// Helper function to decode an encoded polyline
+  List<LatLng> decodePolyline(String polyline, {int precision = 6}) {
+    List<LatLng> points = [];
+    int index = 0, len = polyline.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int shift = 0, result = 0;
+      int b;
+      do {
+        b = polyline.codeUnitAt(index++) - 63;
+        result |= (b & 0x1F) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int deltaLat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lat += deltaLat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = polyline.codeUnitAt(index++) - 63;
+        result |= (b & 0x1F) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int deltaLng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+      lng += deltaLng;
+
+      points.add(LatLng(lat / pow(10, precision), lng / pow(10, precision)));
+    }
+
+    return points;
   }
 
   void _showRouteToNearestDestination() {
