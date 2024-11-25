@@ -12,6 +12,7 @@ class Test extends StatefulWidget {
 
 class _TestState extends State<Test> {
   List<LatLng> routePoints = [];
+  List<List<LatLng>> allRoutes = [];
 
   @override
   Widget build(BuildContext context) {
@@ -20,22 +21,38 @@ class _TestState extends State<Test> {
       body: FlutterMap(
         options: MapOptions(
           initialCenter: LatLng(8.681495, 49.41461), // Example center (Paris)
-          initialZoom: 13,
+          initialZoom: 18,
         ),
         children: [
           TileLayer(
             urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
             userAgentPackageName: 'com.example.app',
           ),
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: routePoints,
-                strokeWidth: 4.0,
-                color: Colors.blue,
-              ),
-            ],
-          ),
+          if (routePoints.isNotEmpty)
+            PolylineLayer(
+              polylines: allRoutes.asMap().entries.map((entry) {
+                final index = entry.key;
+                final route = entry.value;
+
+                // Different colors for each route
+                final colors = [Colors.blue, Colors.green, Colors.red];
+                final color = colors[index % colors.length];
+
+                return Polyline(
+                  points: route,
+                  strokeWidth: 4.0,
+                  color: color,
+                );
+              }).toList(),
+            ),
+          // MarkerLayer(
+          //   markers: routePoints.map((point) {
+          //     return Marker(
+          //       point: point,
+          //       child: Icon(Icons.location_on, color: Colors.red),
+          //     );
+          //   }).toList(),
+          // ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -57,27 +74,71 @@ class _TestState extends State<Test> {
         "Content-Type": "application/json",
       },
       body: jsonEncode({
-        "coordinates": [start, end]
+        "coordinates": [start, end],
+        "alternative_routes": {
+          "target_count": 2,
+          "weight_factor": 1.4,
+          "share_factor": 0.6
+        }
       }),
     );
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      final encodedPolyline =
-          data['routes'][0]['geometry']; // Get encoded polyline
+      final List routes = data['routes'];
 
-      // Decode polyline
-      PolylinePoints polylinePoints = PolylinePoints();
-      List<PointLatLng> decodedPoints =
-          polylinePoints.decodePolyline(encodedPolyline);
+      List<List<LatLng>> newRoutes = [];
+
+      for (var route in routes) {
+        final encodedPolyline = route['geometry'];
+        PolylinePoints polylinePoints = PolylinePoints();
+        List<PointLatLng> decodedPoints =
+            polylinePoints.decodePolyline(encodedPolyline);
+
+        newRoutes.add(decodedPoints
+            .map((point) => LatLng(point.latitude, point.longitude))
+            .toList());
+      }
 
       setState(() {
-        routePoints = decodedPoints
-            .map((point) => LatLng(point.latitude, point.longitude))
-            .toList(); // Convert to LatLng for Leaflet
+        allRoutes = newRoutes;
       });
+
+      print("Routes fetched: ${allRoutes.length}");
     } else {
       print("Error: ${response.reasonPhrase}");
     }
+  }
+
+  List<LatLng> decodePolyline(String encoded) {
+    List<LatLng> points = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int shift = 0, result = 0;
+      int byte;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      int deltaLat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lat += deltaLat;
+
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      int deltaLng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lng += deltaLng;
+
+      points.add(LatLng(lat / 1e5, lng / 1e5));
+    }
+
+    return points;
   }
 }
