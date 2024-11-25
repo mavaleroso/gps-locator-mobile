@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:locationtrackingapp/history.dart';
 import 'package:locationtrackingapp/record.dart';
+import 'package:locationtrackingapp/test.dart';
 
 /// Flutter code sample for [NavigationBar].
 
@@ -29,14 +30,12 @@ class NavigationExample extends StatefulWidget {
 class _NavigationExampleState extends State<NavigationExample> {
   int currentPageIndex = 0;
 
-  final List<Widget> pages = [
-    const Record(),
-    const History(),
-  ];
+  final List<Widget> pages = [const Record(), const History(), Test()];
 
   static List<String> titles = <String>[
     'Record Activity',
     'Activity History',
+    'Test'
   ];
 
   @override
@@ -75,6 +74,11 @@ class _NavigationExampleState extends State<NavigationExample> {
             selectedIcon: Icon(Icons.map),
             icon: Icon(Icons.map_outlined),
             label: 'History',
+          ),
+          NavigationDestination(
+            selectedIcon: Icon(Icons.maps_home_work),
+            icon: Icon(Icons.maps_home_work_outlined),
+            label: 'Test',
           ),
         ],
       ),
