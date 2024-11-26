@@ -24,17 +24,17 @@ class _ActivityDetailState extends State<ActivityDetail>
 
   final List<Map<String, dynamic>> _destinations = [
     {
-      'location': LatLng(8.952399, 125.529228),
+      'location': const LatLng(8.952399, 125.529228),
       'delivered': false,
       'deliveredAt': null
     },
     {
-      'location': LatLng(8.953652, 125.528008),
+      'location': const LatLng(8.953652, 125.528008),
       'delivered': false,
       'deliveredAt': null
     },
     {
-      'location': LatLng(8.954917, 125.528586),
+      'location': const LatLng(8.954917, 125.528586),
       'delivered': false,
       'deliveredAt': null
     },

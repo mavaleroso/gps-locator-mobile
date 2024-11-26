@@ -29,7 +29,7 @@ class _RecordState extends State<Record> {
   Timer? _timer;
   StreamSubscription<Position>? _positionStream;
   List<String>? activityList = [];
-  List<LatLng> _routeCoordinates = [];
+  final List<LatLng> _routeCoordinates = [];
   final String _orsApiKey =
       '5b3ce3597851110001cf62486f61daf8bee1425a93f93d9f99e49416'; // Add your ORS API Key here
   List<Polyline> _routePolylines = [];
@@ -44,22 +44,22 @@ class _RecordState extends State<Record> {
   // Define your 5 destination coordinates
   final List<Map<String, dynamic>> _destinations = [
     {
-      'location': LatLng(8.952399, 125.529228),
+      'location': const LatLng(8.952399, 125.529228),
       'delivered': false,
       'deliveredAt': null
     },
     {
-      'location': LatLng(8.953652, 125.528008),
+      'location': const LatLng(8.953652, 125.528008),
       'delivered': false,
       'deliveredAt': null
     },
     {
-      'location': LatLng(8.954917, 125.528586),
+      'location': const LatLng(8.954917, 125.528586),
       'delivered': false,
       'deliveredAt': null
     },
     {
-      'location': LatLng(8.9443585, 125.5285996),
+      'location': const LatLng(8.9443585, 125.5285996),
       'delivered': false,
       'deliveredAt': null
     },
@@ -150,8 +150,7 @@ class _RecordState extends State<Record> {
     return nearestDestination;
   }
 
-  Future<void> _getRoute(LatLng start, LatLng end,
-      {int alternatives = 2}) async {
+  Future<void> _getRoute(LatLng start, LatLng end) async {
     final url = Uri.parse(
         'https://api.openrouteservice.org/v2/directions/foot-walking');
     final requestPayload = jsonEncode({

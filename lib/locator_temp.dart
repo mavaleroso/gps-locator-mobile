@@ -4,7 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'Location Tracking App',
       home: MyHomePage(),
     );
@@ -77,8 +77,8 @@ class _MyHomePageState extends State<MyHomePage> {
     final hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
-    final locationSettings = const LocationSettings(
-        accuracy: LocationAccuracy.high, distanceFilter: 20);
+    const locationSettings =
+        LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 20);
     StreamSubscription<Position> positionStream =
         Geolocator.getPositionStream(locationSettings: locationSettings)
             .listen((Position position) {

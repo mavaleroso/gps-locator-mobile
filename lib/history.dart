@@ -81,7 +81,7 @@ class _HistoryState extends State<History> {
         tooltip: 'Reset',
         backgroundColor: Colors.red[300],
         foregroundColor: Colors.white,
-        child: Icon(Icons.delete_forever_rounded),
+        child: const Icon(Icons.delete_forever_rounded),
       ),
     );
   }

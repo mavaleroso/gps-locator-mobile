@@ -15,28 +15,36 @@ class _TestState extends State<Test> {
   List<List<LatLng>> allRoutes = [];
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Route Map")),
       body: FlutterMap(
-        options: MapOptions(
-          initialCenter: LatLng(8.681495, 49.41461), // Example center (Paris)
-          initialZoom: 18,
+        options: const MapOptions(
+          initialCenter: LatLng(49.41461, 8.681495),
+          initialZoom: 14,
         ),
         children: [
           TileLayer(
-            urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
             userAgentPackageName: 'com.example.app',
           ),
-          if (routePoints.isNotEmpty)
+          if (allRoutes.isNotEmpty)
             PolylineLayer(
               polylines: allRoutes.asMap().entries.map((entry) {
                 final index = entry.key;
                 final route = entry.value;
 
-                // Different colors for each route
-                final colors = [Colors.blue, Colors.green, Colors.red];
-                final color = colors[index % colors.length];
+                final color = index == 0 ? Colors.blue : Colors.grey;
 
                 return Polyline(
                   points: route,
@@ -45,14 +53,6 @@ class _TestState extends State<Test> {
                 );
               }).toList(),
             ),
-          // MarkerLayer(
-          //   markers: routePoints.map((point) {
-          //     return Marker(
-          //       point: point,
-          //       child: Icon(Icons.location_on, color: Colors.red),
-          //     );
-          //   }).toList(),
-          // ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -76,10 +76,10 @@ class _TestState extends State<Test> {
       body: jsonEncode({
         "coordinates": [start, end],
         "alternative_routes": {
-          "target_count": 2,
-          "weight_factor": 1.4,
-          "share_factor": 0.6
-        }
+          "target_count": 3,
+          "weight_factor": 2.8,
+          "share_factor": 1.2
+        },
       }),
     );
 
@@ -89,15 +89,25 @@ class _TestState extends State<Test> {
 
       List<List<LatLng>> newRoutes = [];
 
+      // for (var route in routes) {
+      //   final encodedPolyline = route['geometry'];
+      //   PolylinePoints polylinePoints = PolylinePoints();
+      //   List<PointLatLng> decodedPoints =
+      //       polylinePoints.decodePolyline(encodedPolyline);
+
+      //   newRoutes.add(decodedPoints
+      //       .map((point) => LatLng(point.latitude, point.longitude))
+      //       .toList());
+      //   // final decodedPolyline = decodePolyline(encodedPolyline);
+
+      //   // newRoutes.add(decodedPolyline);
+      // }
+
       for (var route in routes) {
         final encodedPolyline = route['geometry'];
-        PolylinePoints polylinePoints = PolylinePoints();
-        List<PointLatLng> decodedPoints =
-            polylinePoints.decodePolyline(encodedPolyline);
+        final decodedPolyline = decodePolyline(encodedPolyline);
 
-        newRoutes.add(decodedPoints
-            .map((point) => LatLng(point.latitude, point.longitude))
-            .toList());
+        newRoutes.add(decodedPolyline);
       }
 
       setState(() {
